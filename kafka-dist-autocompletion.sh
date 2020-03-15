@@ -2,7 +2,7 @@
 
 # Kafka Zsh Plugin generator based on https://github.com/Dabz/kafka-zsh-completions
 
-CMD_BLACKLIST=(".*zookeeper.*" ".*run-class.*" ".*ksql-datagen.*" ".*ksql-print-metrics.*")
+CMD_BLACKLIST=(".*zookeeper.*" ".*run-class.*")
 
 function usage () {
     echo "$0: $1" >&2
