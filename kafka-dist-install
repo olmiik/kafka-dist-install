@@ -3,6 +3,7 @@ pushd . > /dev/null
 cd $(dirname $(readlink -f $0))
 SCRIPT_DIR=$(pwd)
 source ./kafka-dist-completion-gen
+source ./cli-confluent-completion-gen
 popd > /dev/null
 
 DIST_APACHE_URL="https://archive.apache.org/dist/kafka"
@@ -82,16 +83,19 @@ function install_kafka_distribution() {
 
     if [[ ! -d "${actual_dist_dir}" ]]; then
         local archive=$(download_dist "${dist}" "${version}")
+        [[ "${archive}" =~ "^Error" ]] && exit 1
         extract_dist "${archive}" "${actual_dist_dir}"
         delete_archive "${archive}"
         patch_scripts "${dist}" "${version}" "${actual_dist_dir}"
         link_to_bin_dir "${dist}" "${version}" "${actual_dist_dir}"
         generate_autocompletion_for_dist_and_version "${dist}" "${version}"
+        generate_cli_confluent_completion "${BIN_ALL_DIR}" "${AUTOCOMPLETION_DIR}" "${dist}" "${version}"
     fi
 
     if [[ "${state}" == "active" ]]; then
         link_to_active_bin_dir "${actual_dist_dir}"
         generate_autocompletion_for_active_dist
+        generate_cli_confluent_completion "${BIN_ACTIVE_DIR}" "${AUTOCOMPLETION_DIR}"
     fi
 }
 
@@ -113,8 +117,8 @@ function download_dist() {
         fi
     done
 
-    echo "Could not download version ${version} of distribution '${dist}'."
-    exit 1
+    echo "Error: Could not download version ${version} of distribution '${dist}'."
+    return 1
 }
 
 function extract_dist() {
@@ -160,7 +164,6 @@ function generate_autocompletion_for_dist_and_version() {
     local name_pattern="${dist}-*-${version}"
     local out_file="${AUTOCOMPLETION_DIR}/${dist}-kafka-${version}.zsh"
     generate_autocompletion_for_bins "${BIN_ALL_DIR}" "${name_pattern}" "${out_file}"
-    echo ${out_file}
 }
 
 function link_to_active_bin_dir() {
@@ -178,7 +181,6 @@ function generate_autocompletion_for_active_dist() {
     local name_pattern="*"
     local out_file="${AUTOCOMPLETION_DIR}/kafka.zsh"
     generate_autocompletion_for_bins "${BIN_ACTIVE_DIR}" "${name_pattern}" "${out_file}"
-    echo ${out_file}
 }
 
 function get_dist_url() {
