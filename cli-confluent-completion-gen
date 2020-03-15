@@ -1,0 +1,73 @@
+#!/bin/zsh
+
+CLI_TOOL_PATTERN=".*/([^-]+-)?confluent(-([0-9]+\.?)+)*"
+
+function usage () {
+    echo "${ZSH_SCRIPT}: $1" >&2
+    echo
+    echo "Usage: ${ZSH_SCRIPT} --bin-dir <bin-dir> --completion-dir <completion-dir>"
+    echo
+}
+
+function generate_autocompletion_from_cmd() {
+    if [[ $# -lt 2 ]]; then
+      usage "Requires options --bin-dir and --completion-dir"
+      exit 1
+    fi;
+
+    local bin_dir=""
+    local completion_dir=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --bin-dir)
+                bin_dir=$2
+                shift 2
+                ;;
+            --completion-dir)
+                completion_dir=$2
+                shift 2
+                ;;
+            *)
+                usage "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$bin_dir" ]; then
+        usage "Option --bin-dir is missing"
+        exit 1
+    fi
+    if [ -z "$completion_dir" ]; then
+        usage "Option --completion-dir is missing"
+        exit 1
+    fi
+
+    generate_autocompletion "${bin_dir}" "${completion_dir}"
+}
+
+function generate_autocompletion() {
+    local bin_dir=${1:?"Missing direcory with executables as first parameter!"}
+    local completion_dir=${2:?"Missing completion dir as second parameter!"}
+
+    mkdir -p ${completion_dir}
+
+    for cmd in $(find "${bin_dir}" -maxdepth 1 -type l -regextype posix-egrep -regex "${CLI_TOOL_PATTERN}"); do
+        generate_completion_for_cmd "${cmd}" ${completion_dir}
+    done
+
+}
+
+function generate_completion_for_cmd() {
+    local cmd=$1
+    local completion_dir=$2
+    
+    local cmd_basename=$(basename "${cmd}")
+    local normalized_cmd_basename=${cmd_basename//[-.]/_}
+
+    ${cmd} completion zsh | sed "s/_confluent/_${normalized_cmd_basename}/g" | sed "s/#compdef _${normalized_cmd_basename} confluent/compdef _${normalized_cmd_basename} ${cmd_basename}/g" > ${completion_dir}/cli-${cmd_basename}.zsh
+}
+
+if [[ "${ZSH_SCRIPT}" == "$0" ]]; then
+    generate_autocompletion_from_cmd "$@"
+fi
