@@ -1,0 +1,162 @@
+#!/bin/zsh
+
+# Kafka Zsh Plugin generator based on https://github.com/Dabz/kafka-zsh-completions
+
+CMD_BLACKLIST=(".*zookeeper.*" ".*run-class.*" ".*ksql-datagen.*" ".*ksql-print-metrics.*")
+
+function usage () {
+    echo "$0: $1" >&2
+    echo
+    echo "Usage:$0 --bin-dir <bin-dir> [--name-pattern <regex>] --out-file <completion-script>"
+    echo
+}
+
+function generate_autocompletion() {
+    if [[ $# -lt 2 ]]; then
+      usage
+      exit 1
+    fi;
+
+    local bin_dir=""
+    local name_pattern=""
+    local out_file=""
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --bin-dir)
+                bin_dir=$2
+                shift 2
+                ;;
+            --name-pattern)
+                name_pattern=$2
+                shift 2
+                ;;
+            --out-file)
+                out_file=$2
+                shift 2
+                ;;
+            *)
+                usage "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$bin_dir" ]; then
+        usage "Option --bin-dir is missing"
+        exit 1
+    fi
+    if [ -z "$out_file" ]; then
+        usage "Option --out-file is missing"
+        exit 1
+    fi
+
+    generate_autocompletion_for_bins "${bin_dir}" "${name_pattern}" "${out_file}"
+}
+
+function generate_autocompletion_for_bins() {
+    local bin_dir=${1:?"Missing direcory with executables as first parameter!"}
+    local name_pattern=${2:?"Missing the name pattern for the executables as the second!"}
+    local out_file=${3:?"Missing name of the autocompletion script as third!"}
+
+    mkdir -p $(dirname ${out_file})
+    
+    generate_base_autocompletion_script ${out_file}
+
+    for cmd in $(find ${bin_dir} -maxdepth 1 -type l -name "${name_pattern}"); do
+        process=true
+        for blacklisted in ${CMD_BLACKLIST[@]}; do
+            if [[ ${cmd} =~ ${blacklisted} ]]; then
+              process=false
+              continue
+            fi
+        done
+        if ${process} ; then
+          generate_completion_for_cmd "${out_file}" "$(basename ${cmd})"
+        fi
+    done
+
+}
+
+function generate_base_autocompletion_script() {
+    local autocompletion_file=$1
+
+    cat << EOF > ${autocompletion_file}
+#!/bin/sh
+function _kafka-command() {
+    cmd=\$1
+    arg_name="_\$(echo \$cmd | tr - _)_args"
+    typeset -a options
+    eval _describe 'values' \$arg_name
+}
+EOF
+}
+
+function generate_completion_for_cmd() {
+    local autocompletion_file=$1
+    local cmd=$2
+    local option=""
+    local desc=""
+    local help_output=$(${cmd} --help 2>&1)
+    local arg_name="_$(echo $cmd | tr - _)_args"
+    local start_desc_column=$(echo ${help_output} | grep Description | head -n 1)
+
+    # If a "Description" column is present 
+    # look for the offset to truncate the 
+    # description of the options.
+    #
+    # This as some tools usage use a table with 2
+    # column with the format
+    # Option    Description
+    # --blbla   this is 
+    #           useful! 
+    if [[ ! -z ${start_desc_column} ]]; then
+        local searchstring="Description"
+        local rest=${start_desc_column##*$searchstring}
+        start_desc_column=$(( ${#start_desc_column} - ${#rest} - ${#searchstring} ))
+    else
+        start_desc_column="-1"
+    fi
+
+    echo "declare -a ${arg_name}"  >> ${autocompletion_file}
+    echo "${arg_name}=()" >> ${autocompletion_file}
+
+    # Iterate over each line to check for options 
+    # after check the iteration, truncate over the 
+    # offset and iterate word by word to build the
+    # description 
+    IFS=$'\n'
+    for line in `echo ${help_output}`; do
+        if [[ "${start_desc_column}" == "-1" ]]; then
+            first_part_line=`echo ${line} | tr '\t' ' '`
+            second_part_line=`echo ${line} | tr '\t' ' '`
+        else
+            first_part_line=`echo ${line} | cut -c -${start_desc_column} | tr '\t' ' '`
+            second_part_line=`echo ${line} | cut -c ${start_desc_column}- | tr '\t' ' '`
+        fi
+        if [[ ${first_part_line} =~ "^[ \s\t]*--[a-z][a-z\-\.]+" ]]; then
+            if [ ! -z ${option} ]; then
+                echo "${arg_name}+=('${option}:${desc//\'/''}')" >> ${autocompletion_file}
+            fi	
+
+            option=`echo ${first_part_line} | sed -E 's/^\s*(--[a-z\.\\\-]+).*$/\1/'`
+            desc=""
+        fi
+        IFS=" "
+        for word in `echo ${second_part_line}`; do
+            desc="${desc} ${word}"
+        done
+        IFS=$'\n'
+    done
+
+    unset IFS
+
+    if [ ! -z ${option} ]; then
+      echo "${arg_name}+=('${option}:${desc//\'/''}')" >> ${autocompletion_file}
+    fi
+
+    echo "compdef \"_kafka-command ${cmd}\" ${cmd}" >> ${autocompletion_file}	
+}
+
+if [[ ! ${ZSH_EVAL_CONTEXT} =~ :file$ ]]; then
+    generate_autocompletion "$@"
+fi

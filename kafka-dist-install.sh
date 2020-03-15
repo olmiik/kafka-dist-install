@@ -81,7 +81,9 @@ function patch_scripts() {
     local actual_dist_dir=$3
 
     for cmd in $(find ${actual_dist_dir}/bin -maxdepth 1 -type f); do
-        sed -i 's/$(dirname $0)/$(dirname $(readlink -f $0))/g' ${cmd}
+        sed -i 's/\$(dirname \$0)/$(dirname \$(readlink -f \$0))/g' ${cmd}
+        sed -i 's/\$( *cd *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
+        sed -i 's/\$( *cd -P *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
     done
 }
 
