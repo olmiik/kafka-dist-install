@@ -97,7 +97,7 @@ function generate_completion_for_cmd() {
     local option=""
     local desc=""
     local help_output=$(${cmd} --help 2>&1)
-    local arg_name="_$(echo $cmd | tr - _)_args"
+    local arg_name="_$(echo ${cmd//./_} | tr - _)_args"
     local start_desc_column=$(echo ${help_output} | grep Description | head -n 1)
 
     # If a "Description" column is present 
@@ -154,7 +154,7 @@ function generate_completion_for_cmd() {
       echo "${arg_name}+=('${option}:${desc//\'/''}')" >> ${autocompletion_file}
     fi
 
-    echo "compdef \"_kafka-command ${cmd}\" ${cmd}" >> ${autocompletion_file}	
+    echo "compdef \"_kafka-command ${cmd//./_}\" ${cmd}" >> ${autocompletion_file}	
 }
 
 if [[ ! ${ZSH_EVAL_CONTEXT} =~ :file$ ]]; then
