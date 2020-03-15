@@ -83,7 +83,7 @@ function install_kafka_distribution() {
     if [[ ! -d "${actual_dist_dir}" ]]; then
         local archive=$(download_dist "${dist}" "${version}")
         extract_dist "${archive}" "${actual_dist_dir}"
-        #delete_archive "${archive}"
+        delete_archive "${archive}"
         patch_scripts "${dist}" "${version}" "${actual_dist_dir}"
         link_to_bin_dir "${dist}" "${version}" "${actual_dist_dir}"
         generate_autocompletion_for_dist_and_version "${dist}" "${version}"
@@ -137,6 +137,7 @@ function patch_scripts() {
         sed -i 's/\$(dirname \$0)/$(dirname \$(readlink -f \$0))/g' ${cmd}
         sed -i 's/\$( *cd *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
         sed -i 's/\$( *cd -P *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
+        sed -i 's/\${BASH_SOURCE%\/\*}/$(dirname \$(readlink -f \$0))/g' ${cmd}
     done
 }
 

@@ -2,7 +2,15 @@
 
 # Kafka Zsh Plugin generator based on https://github.com/Dabz/kafka-zsh-completions
 
-CMD_BLACKLIST=(".*run-class.*" ".*zookeeper.*" ".*mqtt.*")
+CMD_BLACKLIST=(".*run-class.*" ".*zookeeper.*" ".*mqtt.*" "^([^-]+-)?confluent(-([0-9]+\.?)+)?$" 
+    ".*confluent-rebalancer.*" ".*ksql-print-metrics.*" ".*ksql-datagen.*" ".*control-center-console-consumer.*" 
+    ".*connect-standalone.*" ".*confluent-hub.*" ".*ksql-stop.*" ".*trogdor.*" ".*connect-mirror-maker.*"
+    ".*kafka-rest-stop.*" ".*kafka-server-stop.*" ".*control-center-3_0_0-reset.*" ".*connect-distributed.*"
+    ".*schema-registry-stop.*" ".*control-center-set-acls.*" ".*ksql-server-stop.*" ".*control-center-start.*"
+    ".*kafka-api-start.*" ".*control-center-3_0_1-reset.*" ".*kafka-rest-start.*" ".*schema-registry-stop-service.*"
+    ".*ksql-server-start.*" ".*schema-registry-start.*" ".*control-center-export.*" ".*kafka-rest-stop-service.*"
+    ".*control-center-reset.*" ".*kafka-server-start.*" ".*control-center-stop.*"
+)
 
 function usage () {
     echo "${ZSH_SCRIPT}: $1" >&2
@@ -65,7 +73,7 @@ function generate_autocompletion_for_bins() {
     for cmd in $(find ${bin_dir} -maxdepth 1 -type l -name "${name_pattern}"); do
         process=true
         for blacklisted in ${CMD_BLACKLIST[@]}; do
-            if [[ ${cmd} =~ ${blacklisted} ]]; then
+            if [[ $(basename ${cmd}) =~ ${blacklisted} ]]; then
               process=false
               continue
             fi
