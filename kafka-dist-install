@@ -2,7 +2,7 @@
 pushd . > /dev/null
 cd $(dirname $(readlink -f $0))
 SCRIPT_DIR=$(pwd)
-source ./kafka-dist-autocompletion
+source ./kafka-dist-completion-gen
 popd > /dev/null
 
 DIST_APACHE_URL="https://archive.apache.org/dist/kafka"
@@ -14,7 +14,7 @@ DIST_DIR=${SCRIPT_DIR}/dist
 BIN_DIR=${SCRIPT_DIR}/bin
 BIN_ALL_DIR=${BIN_DIR}/all
 BIN_ACTIVE_DIR=${BIN_DIR}/active
-AUTOCOMPLETION_DIR=${SCRIPT_DIR}/autocompletion
+AUTOCOMPLETION_DIR=${SCRIPT_DIR}/completion
 
 function usage () {
     echo "${ZSH_SCRIPT}: $1" >&2
@@ -86,14 +86,12 @@ function install_kafka_distribution() {
         #delete_archive "${archive}"
         patch_scripts "${dist}" "${version}" "${actual_dist_dir}"
         link_to_bin_dir "${dist}" "${version}" "${actual_dist_dir}"
-        local autocompletion_script_dist=$(generate_autocompletion_for_dist_and_version "${dist}" "${version}")
-        activate_autocompletion_script ${autocompletion_script_dist}
+        generate_autocompletion_for_dist_and_version "${dist}" "${version}"
     fi
-    
+
     if [[ "${state}" == "active" ]]; then
         link_to_active_bin_dir "${actual_dist_dir}"
-        local autocompletion_script=$(generate_autocompletion_for_active_dist)
-        activate_autocompletion_script ${autocompletion_script}
+        generate_autocompletion_for_active_dist
     fi
 }
 
@@ -162,13 +160,6 @@ function generate_autocompletion_for_dist_and_version() {
     local out_file="${AUTOCOMPLETION_DIR}/${dist}-kafka-${version}.zsh"
     generate_autocompletion_for_bins "${BIN_ALL_DIR}" "${name_pattern}" "${out_file}"
     echo ${out_file}
-}
-
-function activate_autocompletion_script() {
-    local autocompletion_script=$1
-    autoload -Uz compinit
-    compinit
-    source ${autocompletion_script}
 }
 
 function link_to_active_bin_dir() {

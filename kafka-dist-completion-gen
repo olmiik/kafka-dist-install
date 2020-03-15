@@ -2,7 +2,7 @@
 
 # Kafka Zsh Plugin generator based on https://github.com/Dabz/kafka-zsh-completions
 
-CMD_BLACKLIST=(".*zookeeper.*" ".*run-class.*")
+CMD_BLACKLIST=(".*run-class.*" ".*zookeeper.*" ".*mqtt.*")
 
 function usage () {
     echo "${ZSH_SCRIPT}: $1" >&2
@@ -82,7 +82,7 @@ function generate_base_autocompletion_script() {
 
     cat << EOF > ${autocompletion_file}
 #!/bin/sh
-function _kafka-command() {
+function _kafka_command() {
     cmd=\$1
     arg_name="_\$(echo \$cmd | tr - _)_args"
     typeset -a options
@@ -154,7 +154,7 @@ function generate_completion_for_cmd() {
       echo "${arg_name}+=('${option}:${desc//\'/''}')" >> ${autocompletion_file}
     fi
 
-    echo "compdef \"_kafka-command ${cmd//./_}\" ${cmd}" >> ${autocompletion_file}	
+    echo "compdef \"_kafka_command ${cmd//./_}\" ${cmd}" >> ${autocompletion_file}	
 }
 
 if [[ "${ZSH_SCRIPT}" == "$0" ]]; then
