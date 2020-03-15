@@ -1,0 +1,13 @@
+#!/bin/zsh
+pushd . > /dev/null
+cd $(dirname $(readlink -f $0))
+source kafka-dist-install
+popd > /dev/null
+
+function bin_path() {
+    echo ${BIN_ACTIVE_DIR}:${BIN_ALL_DIR}
+}
+
+if [[ "${ZSH_SCRIPT}" == "$0" ]]; then
+    bin_path
+fi

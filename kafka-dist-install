@@ -1,0 +1,234 @@
+#!/bin/zsh
+pushd . > /dev/null
+cd $(dirname $(readlink -f $0))
+SCRIPT_DIR=$(pwd)
+source ./kafka-dist-autocompletion
+popd > /dev/null
+
+DIST_APACHE_URL="https://archive.apache.org/dist/kafka"
+DIST_CONFLUENT_URL="https://packages.confluent.io/archive"
+SCALA_VERSIONS=("2.13" "2.12" "2.11", "2.10")
+
+ARCHIVE_DIR=${SCRIPT_DIR}/archive
+DIST_DIR=${SCRIPT_DIR}/dist
+BIN_DIR=${SCRIPT_DIR}/bin
+BIN_ALL_DIR=${BIN_DIR}/all
+BIN_ACTIVE_DIR=${BIN_DIR}/active
+AUTOCOMPLETION_DIR=${SCRIPT_DIR}/autocompletion
+
+function usage () {
+    echo "${ZSH_SCRIPT}: $1" >&2
+    echo
+    echo "Usage: ${ZSH_SCRIPT} --dist <distribution (apache|ccs|ce)> --version <version> [--state <state (active|inactive)>]"
+    echo
+}
+
+function install_kafka_distribution_from_cmd() {
+    if [[ $# -lt 2 ]]; then
+      usage "Requires options --dist and --version"
+      exit 1
+    fi;
+
+    local dist=""
+    local version=""
+    local state="active"
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dist)
+                if [[ ! "$2" =~ "apache|ccs|ce" ]]; then
+                    usage "Unknown dist: $2"
+                    exit 1
+                fi
+                dist=$2
+                shift 2
+                ;;
+            --version)
+                version=$2
+                shift 2
+                ;;
+            --state)
+                if [[ ! "$2" =~ "active|inactive" ]]; then
+                    usage "Unknown state: $2"
+                    exit 1
+                fi
+                state=$2
+                shift 2
+                ;;
+            *)
+                usage "Unknown option: $1"
+                exit 1
+                ;;
+        esac
+    done
+
+    if [ -z "$dist" ]; then
+        usage "Option --dist is missing"
+        exit 1
+    fi
+    if [ -z "$version" ]; then
+        usage "Option -version is missing"
+        exit 1
+    fi
+
+    install_kafka_distribution "${dist}" "${version}" "${state}"
+}
+
+function install_kafka_distribution() {
+    local dist=${1:?"Missing distribution type as first parameter! Allowed values are 'apache', 'ccs' and 'ce'."}
+    local version=${2:?"Missing the name of the distribution as first parameter!"}
+    local state=${3:-"active"}
+
+    local actual_dist_dir="${DIST_DIR}/${dist}-kafka-${version}"
+
+    if [[ ! -d "${actual_dist_dir}" ]]; then
+        local archive=$(download_dist "${dist}" "${version}")
+        extract_dist "${archive}" "${actual_dist_dir}"
+        #delete_archive "${archive}"
+        patch_scripts "${dist}" "${version}" "${actual_dist_dir}"
+        link_to_bin_dir "${dist}" "${version}" "${actual_dist_dir}"
+        local autocompletion_script_dist=$(generate_autocompletion_for_dist_and_version "${dist}" "${version}")
+        activate_autocompletion_script ${autocompletion_script_dist}
+    fi
+    
+    if [[ "${state}" == "active" ]]; then
+        link_to_active_bin_dir "${actual_dist_dir}"
+        local autocompletion_script=$(generate_autocompletion_for_active_dist)
+        activate_autocompletion_script ${autocompletion_script}
+    fi
+}
+
+function download_dist() {
+    local dist=$1
+    local version=$2
+
+    for scala_version in ${SCALA_VERSIONS[@]}; do
+        local url=$(get_dist_url ${dist} ${version} ${scala_version})
+        local archive="${ARCHIVE_DIR}/$(basename ${url})"
+        if [[ -f "${archive}" ]]; then
+            echo "${archive}"
+            return 0
+        fi        
+        wget -P ${ARCHIVE_DIR}/ ${url}
+        if [[ $? == 0 ]]; then
+            echo "${ARCHIVE_DIR}/$(basename ${url})"
+            return 0  
+        fi
+    done
+
+    echo "Could not download version ${version} of distribution '${dist}'."
+    exit 1
+}
+
+function extract_dist() {
+    local archive=$1
+    local actual_dist_dir=$2
+
+    mkdir -p ${actual_dist_dir}
+    tar -xf ${archive} -C ${actual_dist_dir} --strip-components=1
+}
+
+function delete_archive() {
+    local archive=$1
+    rm ${archive}
+}
+
+function patch_scripts() {
+    local actual_dist_dir=$3
+
+    for cmd in $(find ${actual_dist_dir}/bin -maxdepth 1 -type f); do
+        sed -i 's/\$(dirname \$0)/$(dirname \$(readlink -f \$0))/g' ${cmd}
+        sed -i 's/\$( *cd *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
+        sed -i 's/\$( *cd -P *"\$( *dirname "\${BASH_SOURCE\[0]}" *)\/.." && pwd )/\$(dirname \$(readlink -f \$0))\/../g' ${cmd}
+    done
+}
+
+function link_to_bin_dir() {
+    local dist=$1
+    local version=$2
+    local actual_dist_dir=$3
+
+    mkdir -p ${BIN_ALL_DIR}
+    for cmd in $(find ${actual_dist_dir}/bin -maxdepth 1 -type f); do
+        local cmd_basename=$(basename ${cmd})
+        ln -sf ${cmd} ${BIN_ALL_DIR}/${dist}-${cmd_basename%.*}-${version}
+    done
+}
+
+function generate_autocompletion_for_dist_and_version() {
+    local dist=$1
+    local version=$2
+
+    local name_pattern="${dist}-*-${version}"
+    local out_file="${AUTOCOMPLETION_DIR}/${dist}-kafka-${version}.zsh"
+    generate_autocompletion_for_bins "${BIN_ALL_DIR}" "${name_pattern}" "${out_file}"
+    echo ${out_file}
+}
+
+function activate_autocompletion_script() {
+    local autocompletion_script=$1
+    autoload -Uz compinit
+    compinit
+    source ${autocompletion_script}
+}
+
+function link_to_active_bin_dir() {
+    local actual_dist_dir=$1
+
+    rm -f ${BIN_ACTIVE_DIR}/*
+    mkdir -p ${BIN_ACTIVE_DIR}
+    for cmd in $(find ${actual_dist_dir}/bin -maxdepth 1 -type f); do
+        local cmd_basename=$(basename ${cmd})
+        ln -s ${cmd} ${BIN_ACTIVE_DIR}/${cmd_basename%.*}
+    done
+}
+
+function generate_autocompletion_for_active_dist() {
+    local name_pattern="*"
+    local out_file="${AUTOCOMPLETION_DIR}/kafka.zsh"
+    generate_autocompletion_for_bins "${BIN_ACTIVE_DIR}" "${name_pattern}" "${out_file}"
+    echo ${out_file}
+}
+
+function get_dist_url() {
+    local dist=$1
+    local dist_version=$2
+    local scala_version=$3
+    case "$dist" in
+        apache)
+            get_dist_apache_url ${version} ${scala_version}
+            ;;
+        ccs)
+            get_dist_ccs_url ${version} ${scala_version}
+            ;;
+        ce)
+            get_dist_ce_url ${version} ${scala_version}
+            ;;
+        *)
+            usage "Unknown dist: ${dist}"
+            exit 1
+            ;;
+    esac
+}
+
+function get_dist_apache_url() {
+    local dist_version=$1
+    local scala_version=$2
+    echo ${DIST_APACHE_URL}/${version}/kafka_${scala_version}-${version}.tgz
+}
+
+function get_dist_ccs_url() {
+    local dist_version=$1
+    local scala_version=$2
+    local ccs_abrev=$([[ "$dist_version" < "5.1.0" ]] && echo oss || echo community)
+    echo ${DIST_CONFLUENT_URL}/${version%.*}/confluent-${ccs_abrev}-${version}-${scala_version}.tar.gz
+}
+
+function get_dist_ce_url() {
+    local dist_version=$1
+    local scala_version=$2
+    echo ${DIST_CONFLUENT_URL}/${version%.*}/confluent-${version}-${scala_version}.tar.gz
+}
+
+if [[ "${ZSH_SCRIPT}" == "$0" ]]; then
+    install_kafka_distribution_from_cmd "$@"
+fi

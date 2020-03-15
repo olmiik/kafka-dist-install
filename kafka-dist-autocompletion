@@ -5,20 +5,20 @@
 CMD_BLACKLIST=(".*zookeeper.*" ".*run-class.*")
 
 function usage () {
-    echo "$0: $1" >&2
+    echo "${ZSH_SCRIPT}: $1" >&2
     echo
-    echo "Usage:$0 --bin-dir <bin-dir> [--name-pattern <regex>] --out-file <completion-script>"
+    echo "Usage: ${ZSH_SCRIPT} --bin-dir <bin-dir> [--name-pattern <regex>] --out-file <completion-script>"
     echo
 }
 
-function generate_autocompletion() {
+function generate_autocompletion_from_cmd() {
     if [[ $# -lt 2 ]]; then
-      usage
+      usage "Requires options --bin-dir and --out-file"
       exit 1
     fi;
 
     local bin_dir=""
-    local name_pattern=""
+    local name_pattern="*"
     local out_file=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -157,6 +157,6 @@ function generate_completion_for_cmd() {
     echo "compdef \"_kafka-command ${cmd//./_}\" ${cmd}" >> ${autocompletion_file}	
 }
 
-if [[ ! ${ZSH_EVAL_CONTEXT} =~ :file$ ]]; then
-    generate_autocompletion "$@"
+if [[ "${ZSH_SCRIPT}" == "$0" ]]; then
+    generate_autocompletion_from_cmd "$@"
 fi
